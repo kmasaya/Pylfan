@@ -19,25 +19,19 @@ class RootFrame(wx.Frame):
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
         self.checkbox_resize = wx.CheckBox(self, wx.ID_ANY, "Resize")
-        # self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Height and Width", "Long side", "Narrow side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
-        self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Height and Width", "Long side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
-        self.label_resize_input_size = wx.StaticText(self, wx.ID_ANY, "Height / Widht or Select Side", style=wx.ALIGN_CENTRE)
+        self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Width and Height", "Long side", "Narrow side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
+        # self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Height and Width", "Long side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
+        self.label_resize_input_size = wx.StaticText(self, wx.ID_ANY, "Width / Height or Select Side", style=wx.ALIGN_CENTRE)
         self.input_resize_height = wx.TextCtrl(self, wx.ID_ANY, "")
         self.input_resize_width = wx.TextCtrl(self, wx.ID_ANY, "")
         self.checkbox_aspect = wx.CheckBox(self, wx.ID_ANY, "Aspect")
         self.checkbox_zoom = wx.CheckBox(self, wx.ID_ANY, "Zoom")
-        # XXX
-        self.checkbox_zoom.Disable()
         self.resample_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Resample", choices=["Antialias", "Bicubic", "Bilinear"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         self.checkbox_colors = wx.CheckBox(self, wx.ID_ANY, "Colors")
-        # XXX
-        self.checkbox_colors.Disable()
         self.combo_box_colors = wx.ComboBox(self, wx.ID_ANY, choices=["24bit", "8bit", "4bit", "1bit"], style=wx.CB_DROPDOWN)
         self.checkbox_flip_holizontal = wx.CheckBox(self, wx.ID_ANY, "Flip Horizontal")
         self.checkbox_flip_vertical = wx.CheckBox(self, wx.ID_ANY, "Flip Vertical")
         self.checkbox_flip_exif = wx.CheckBox(self, wx.ID_ANY, "Flip EXIF")
-        # XXX
-        self.checkbox_flip_exif.Disable()
         self.checkbox_grayscale = wx.CheckBox(self, wx.ID_ANY, "Grayscale")
         self.checkbox_negative = wx.CheckBox(self, wx.ID_ANY, "Flip Negative")
         self.checkbox_file_overwrite = wx.CheckBox(self, wx.ID_ANY, "File Overwrite")
@@ -95,7 +89,7 @@ class RootFrame(wx.Frame):
         resize_input_sizer.Add(self.input_resize_height, 0, 0, 0)
         resize_input_sizer.Add(self.input_resize_width, 0, 0, 0)
         resize_sizer.Add(resize_input_sizer, 1, wx.SHAPED, 0)
-        edit_sizer.Add(resize_sizer, 1, 0, 0)
+        edit_sizer.Add(resize_sizer, 1, wx.EXPAND, 0)
         zoom_sizer.Add(self.checkbox_aspect, 0, wx.EXPAND, 0)
         zoom_sizer.Add(self.checkbox_zoom, 0, wx.EXPAND, 0)
         zoom_sizer.Add(self.resample_mode_radio_box, 0, wx.EXPAND, 0)
@@ -133,7 +127,8 @@ class RootFrame(wx.Frame):
 
     def ChangeResizeMode(self, event):  # wxGlade: RootFrame.<event_handler>
         # XXX
-        if 2 == self.resize_mode_radio_box.GetSelection():
+        selection = self.resize_mode_radio_box.GetSelection()
+        if 1 == selection or 2 == selection:
             self.input_resize_width.Disable()
         else:
             self.input_resize_width.Enable()
@@ -151,9 +146,6 @@ class RootFrame(wx.Frame):
         for i, convert_file in enumerate(self.convert_files):
             self.tree_filelist.InsertStringItem(i, convert_file)
 
-        print self.convert_files
-        print self.convert_file_dir
-
     def OnConvert(self, event):  # wxGlade: RootFrame.<event_handler>
         import PIL.ImageOps
         import Image
@@ -166,16 +158,19 @@ class RootFrame(wx.Frame):
         is_resize = self.checkbox_resize.IsChecked()
         resize_mode = self.resize_mode_radio_box.GetSelection()
         height = int(self.input_resize_height.GetValue())
-        width = int(self.input_resize_width.GetValue())
+        if resize_mode == 0:
+            width = int(self.input_resize_width.GetValue())
+        else:
+            width = None
         is_aspect = self.checkbox_aspect.IsChecked()
-        #is_zoom = self.checkbox_zoom.IsChecked()
+        is_zoom = self.checkbox_zoom.IsChecked()
         resample_mode = self.resample_mode_radio_box.GetSelection()
 
         is_colors = self.checkbox_colors.IsChecked()
         color_mode = self.combo_box_colors.GetSelection()
         is_flip_horizontal = self.checkbox_flip_holizontal.IsChecked()
         is_flip_vertical = self.checkbox_flip_vertical.IsChecked()
-        #is_flip_exif = self.checkbox_flip_exif.IsChecked()
+        is_flip_exif = self.checkbox_flip_exif.IsChecked()
         is_grayscale = self.checkbox_grayscale.IsChecked()
         is_flip_negative = self.checkbox_negative.IsChecked()
 
@@ -197,19 +192,37 @@ class RootFrame(wx.Frame):
 
             image = Image.open(os.path.join(tmp_dir, convert_file))
             if is_resize:
-                if resize_mode == 0:
-                    if is_aspect:
-                        image.thumbnail((width, height), RESAMPLE_MODES[resample_mode])
-                    else:
-                        image = image.resize((width, height), RESAMPLE_MODES[resample_mode])
-                elif resample_mode == 1:
-                    if is_aspect:
-                        image.thumbnail((height, height), RESAMPLE_MODES[resample_mode])
-                    else:
-                        image = image.resize((height, height), RESAMPLE_MODES[resample_mode])
-                elif resample_mode == 2:
-                    # XXX
-                    pass
+                if not (not is_zoom and (width >= image.size[0] and height >= image.size[1])):
+                    if resize_mode == 0:
+                        if is_aspect:
+                            wpercent = (width/float(image.size[0]))
+                            hpercent = (height/float(image.size[1]))
+                            if wpercent <= hpercent:
+                                hsize = int((float(image.size[1]) * float(wpercent)))
+                                image = image.resize((width, hsize), RESAMPLE_MODES[resample_mode])
+                            else:
+                                wsize = int((float(image.size[0]) * float(hpercent)))
+                                image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
+                        else:
+                            image = image.resize((width, height), RESAMPLE_MODES[resample_mode])
+                    elif resize_mode == 1:
+                        wpercent = (height/float(image.size[0]))
+                        hpercent = (height/float(image.size[1]))
+                        if wpercent <= hpercent:
+                            hsize = int((float(image.size[1]) * float(wpercent)))
+                            image = image.resize((height, hsize), RESAMPLE_MODES[resample_mode])
+                        else:
+                            wsize = int((float(image.size[0]) * float(hpercent)))
+                            image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
+                    elif resize_mode == 2:
+                        wpercent = (height/float(image.size[0]))
+                        hpercent = (height/float(image.size[1]))
+                        if wpercent >= hpercent:
+                            hsize = int((float(image.size[1]) * float(wpercent)))
+                            image = image.resize((height, hsize), RESAMPLE_MODES[resample_mode])
+                        else:
+                            wsize = int((float(image.size[0]) * float(hpercent)))
+                            image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
 
             if is_flip_horizontal:
                 image = image.transpose(Image.FLIP_LEFT_RIGHT)
