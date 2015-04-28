@@ -22,8 +22,8 @@ class RootFrame(wx.Frame):
         self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Width and Height", "Long side", "Narrow side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         # self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Height and Width", "Long side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         self.label_resize_input_size = wx.StaticText(self, wx.ID_ANY, "Width / Height or Select Side", style=wx.ALIGN_CENTRE)
-        self.input_resize_height = wx.TextCtrl(self, wx.ID_ANY, "")
         self.input_resize_width = wx.TextCtrl(self, wx.ID_ANY, "")
+        self.input_resize_height = wx.TextCtrl(self, wx.ID_ANY, "")
         self.checkbox_aspect = wx.CheckBox(self, wx.ID_ANY, "Aspect")
         self.checkbox_zoom = wx.CheckBox(self, wx.ID_ANY, "Zoom")
         self.resample_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Resample", choices=["Antialias", "Bicubic", "Bilinear"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
@@ -86,8 +86,8 @@ class RootFrame(wx.Frame):
         resize_sizer.Add(self.checkbox_resize, 0, wx.EXPAND, 0)
         resize_sizer.Add(self.resize_mode_radio_box, 0, wx.EXPAND, 0)
         resize_sizer.Add(self.label_resize_input_size, 0, wx.EXPAND | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL, 0)
-        resize_input_sizer.Add(self.input_resize_height, 0, 0, 0)
         resize_input_sizer.Add(self.input_resize_width, 0, 0, 0)
+        resize_input_sizer.Add(self.input_resize_height, 0, 0, 0)
         resize_sizer.Add(resize_input_sizer, 1, wx.SHAPED, 0)
         edit_sizer.Add(resize_sizer, 1, wx.EXPAND, 0)
         zoom_sizer.Add(self.checkbox_aspect, 0, wx.EXPAND, 0)
@@ -129,12 +129,12 @@ class RootFrame(wx.Frame):
         # XXX
         selection = self.resize_mode_radio_box.GetSelection()
         if 1 == selection or 2 == selection:
-            self.input_resize_width.Disable()
+            self.input_resize_height.Disable()
         else:
-            self.input_resize_width.Enable()
+            self.input_resize_height.Enable()
 
     def OnFileChoose(self, event):  # wxGlade: RootFrame.<event_handler>
-        dialog = wx.FileDialog(self, 'Choose files', './', '', 'Image files (*.gif;*.png;*.jpg)|*.gif;*.png;*.jpg', wx.FD_MULTIPLE)
+        dialog = wx.FileDialog(self, 'Choose files', './', '', 'Image files (*.gif;*.png;*.jpg)|*.gif;*.png;*.jpg;*.JPG', wx.FD_MULTIPLE)
         if dialog.ShowModal() == wx.ID_OK:
             self.convert_files = dialog.GetFilenames()
             self.convert_file_dir = dialog.GetDirectory()
@@ -157,11 +157,11 @@ class RootFrame(wx.Frame):
 
         is_resize = self.checkbox_resize.IsChecked()
         resize_mode = self.resize_mode_radio_box.GetSelection()
-        height = int(self.input_resize_height.GetValue())
+        width = int(self.input_resize_width.GetValue())
         if resize_mode == 0:
-            width = int(self.input_resize_width.GetValue())
+            height = int(self.input_resize_height.GetValue())
         else:
-            width = None
+            height = None
         is_aspect = self.checkbox_aspect.IsChecked()
         is_zoom = self.checkbox_zoom.IsChecked()
         resample_mode = self.resample_mode_radio_box.GetSelection()
@@ -191,8 +191,26 @@ class RootFrame(wx.Frame):
             shutil.copy(current_file, tmp_dir)
 
             image = Image.open(os.path.join(tmp_dir, convert_file))
+
+            if is_flip_exif:
+                convert_image = {
+                    1: lambda img: img,
+                    2: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT),
+                    3: lambda img: img.transpose(Image.ROTATE_180),
+                    4: lambda img: img.transpose(Image.FLIP_TOP_BOTTOM),
+                    5: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90),
+                    6: lambda img: img.transpose(Image.ROTATE_270),
+                    7: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_270),
+                    8: lambda img: img.transpose(Image.ROTATE_90),
+                }
+                exif = image._getexif()
+                orientation = exif.get(0x112, 1)
+                image = convert_image[orientation](image)
+
             if is_resize:
-                if not (not is_zoom and (width >= image.size[0] and height >= image.size[1])):
+                if (width >= image.size[0] and height >= image.size[1]) and not is_zoom:
+                    pass
+                else:
                     if resize_mode == 0:
                         if is_aspect:
                             wpercent = (width/float(image.size[0]))
@@ -204,25 +222,25 @@ class RootFrame(wx.Frame):
                                 wsize = int((float(image.size[0]) * float(hpercent)))
                                 image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
                         else:
-                            image = image.resize((width, height), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((height, width), RESAMPLE_MODES[resample_mode])
                     elif resize_mode == 1:
-                        wpercent = (height/float(image.size[0]))
-                        hpercent = (height/float(image.size[1]))
+                        wpercent = (width/float(image.size[0]))
+                        hpercent = (width/float(image.size[1]))
                         if wpercent <= hpercent:
                             hsize = int((float(image.size[1]) * float(wpercent)))
-                            image = image.resize((height, hsize), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((width, hsize), RESAMPLE_MODES[resample_mode])
                         else:
                             wsize = int((float(image.size[0]) * float(hpercent)))
-                            image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((wsize, width), RESAMPLE_MODES[resample_mode])
                     elif resize_mode == 2:
-                        wpercent = (height/float(image.size[0]))
-                        hpercent = (height/float(image.size[1]))
+                        wpercent = (width/float(image.size[0]))
+                        hpercent = (width/float(image.size[1]))
                         if wpercent >= hpercent:
                             hsize = int((float(image.size[1]) * float(wpercent)))
-                            image = image.resize((height, hsize), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((width, hsize), RESAMPLE_MODES[resample_mode])
                         else:
                             wsize = int((float(image.size[0]) * float(hpercent)))
-                            image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((wsize, width), RESAMPLE_MODES[resample_mode])
 
             if is_flip_horizontal:
                 image = image.transpose(Image.FLIP_LEFT_RIGHT)
@@ -231,7 +249,7 @@ class RootFrame(wx.Frame):
                 image = image.transpose(Image.FLIP_TOP_BOTTOM)
 
             if is_grayscale:
-                image = image.convert('LA')
+                image = image.convert('L')
 
             if is_flip_negative:
                 image = PIL.ImageOps.invert(image)
