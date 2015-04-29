@@ -28,7 +28,7 @@ class RootFrame(wx.Frame):
         self.checkbox_zoom = wx.CheckBox(self, wx.ID_ANY, "Zoom")
         self.resample_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Resample", choices=["Antialias", "Bicubic", "Bilinear"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         self.checkbox_colors = wx.CheckBox(self, wx.ID_ANY, "Colors")
-        self.combo_box_colors = wx.ComboBox(self, wx.ID_ANY, choices=["24bit", "1bit"], style=wx.CB_DROPDOWN)
+        self.combo_box_colors = wx.ComboBox(self, wx.ID_ANY, choices=["24bit", "8bit", "4bit", "1bit"], style=wx.CB_DROPDOWN)
         self.checkbox_flip_holizontal = wx.CheckBox(self, wx.ID_ANY, "Flip Horizontal")
         self.checkbox_flip_vertical = wx.CheckBox(self, wx.ID_ANY, "Flip Vertical")
         self.checkbox_flip_exif = wx.CheckBox(self, wx.ID_ANY, "Flip EXIF")
@@ -232,8 +232,9 @@ class RootFrame(wx.Frame):
 
             if image_type == 'jpeg' and is_flip_exif:
                 exif = image._getexif()  # type: Dict[Blob: Any]
-                orientation = exif.get(0x112, 1)  # type: int
-                image = CONVERT_IMAGE[orientation](image)  # type: Image
+                if exif is not None:
+                    orientation = exif.get(0x112, 1)  # type: int
+                    image = CONVERT_IMAGE[orientation](image)  # type: Image
 
             if is_resize:
                 if (width >= image.size[0] and height >= image.size[1]) and not is_zoom:
@@ -266,13 +267,11 @@ class RootFrame(wx.Frame):
                 if color_mode == 0:
                     pass
                 elif color_mode == 1:
-                    def point_filter(point):
-                        if point > 127:
-                            return 255
-                        else:
-                            return 0
-                    image = image.convert('L').point(point_filter)
-
+                    image = image.point(lambda point: int(point/32)*32)  # type: Image
+                elif color_mode == 2:
+                    image = image.point(lambda point: int(point/64)*64)  # type: Image
+                elif color_mode == 3:
+                    image = image.convert('L').point(lambda point: 0 if point < 127 else 255)  # type: Image
 
             if is_flip_horizontal:
                 image = image.transpose(Image.FLIP_LEFT_RIGHT)  # type: Image
@@ -284,9 +283,7 @@ class RootFrame(wx.Frame):
                 image = image.convert('L')  # type: Image
 
             if is_flip_negative:
-                print '--'
-                image = PIL.ImageOps.invert(image)  # type: Image
-                print '=='
+                image = image.point(lambda point: 255 - point)  # type: Image
 
             if is_remove_exif:
                 exif_str = ''  # type: str
