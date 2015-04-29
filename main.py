@@ -28,12 +28,14 @@ class RootFrame(wx.Frame):
         self.checkbox_zoom = wx.CheckBox(self, wx.ID_ANY, "Zoom")
         self.resample_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Resample", choices=["Antialias", "Bicubic", "Bilinear"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         self.checkbox_colors = wx.CheckBox(self, wx.ID_ANY, "Colors")
-        self.combo_box_colors = wx.ComboBox(self, wx.ID_ANY, choices=["24bit", "8bit", "4bit", "1bit"], style=wx.CB_DROPDOWN)
+        self.combo_box_colors = wx.ComboBox(self, wx.ID_ANY, choices=["24bit", "1bit"], style=wx.CB_DROPDOWN)
         self.checkbox_flip_holizontal = wx.CheckBox(self, wx.ID_ANY, "Flip Horizontal")
         self.checkbox_flip_vertical = wx.CheckBox(self, wx.ID_ANY, "Flip Vertical")
         self.checkbox_flip_exif = wx.CheckBox(self, wx.ID_ANY, "Flip EXIF")
         self.checkbox_grayscale = wx.CheckBox(self, wx.ID_ANY, "Grayscale")
         self.checkbox_negative = wx.CheckBox(self, wx.ID_ANY, "Flip Negative")
+        # XXX
+        self.checkbox_remove_exif = wx.CheckBox(self, wx.ID_ANY, "Remove EXIF")
         self.checkbox_file_overwrite = wx.CheckBox(self, wx.ID_ANY, "File Overwrite")
         self.checkbox_output_dir = wx.CheckBox(self, wx.ID_ANY, "Output Dir")
         self.input_output_dir = wx.TextCtrl(self, wx.ID_ANY, "convert")
@@ -58,6 +60,9 @@ class RootFrame(wx.Frame):
         # begin wxGlade: RootFrame.__set_properties
         self.SetTitle("Pylfan")
         self.SetSize((896, 600))
+        self.checkbox_resize.SetValue(1)
+        self.input_resize_width.SetValue('800')
+        self.input_resize_height.SetValue('600')
         self.resize_mode_radio_box.SetSelection(0)
         self.checkbox_aspect.SetValue(1)
         self.resample_mode_radio_box.SetSelection(0)
@@ -103,6 +108,7 @@ class RootFrame(wx.Frame):
         convert_sizer.Add(self.checkbox_flip_exif, 0, wx.EXPAND, 0)
         convert_sizer.Add(self.checkbox_grayscale, 0, wx.EXPAND, 0)
         convert_sizer.Add(self.checkbox_negative, 0, wx.EXPAND, 0)
+        convert_sizer.Add(self.checkbox_remove_exif, 0, wx.EXPAND, 0)
         sub_sizer.Add(convert_sizer, 1, 0, 0)
         file_overwrite_sizer.Add(self.checkbox_file_overwrite, 0, wx.EXPAND, 0)
         file_output_sizer.Add(self.checkbox_output_dir, 0, 0, 0)
@@ -134,7 +140,7 @@ class RootFrame(wx.Frame):
             self.input_resize_height.Enable()
 
     def OnFileChoose(self, event):  # wxGlade: RootFrame.<event_handler>
-        dialog = wx.FileDialog(self, 'Choose files', './', '', 'Image files (*.gif;*.png;*.jpg)|*.gif;*.png;*.jpg;*.JPG', wx.FD_MULTIPLE)
+        dialog = wx.FileDialog(self, 'Choose files', './', '', 'Image files (*.gif;*.png;*.jpg)|*.gif;*.png;*.jpg;*.jpeg;*.GIF;*.PNG;*.JPG;*.JPEG;', wx.FD_MULTIPLE)
         if dialog.ShowModal() == wx.ID_OK:
             self.convert_files = dialog.GetFilenames()
             self.convert_file_dir = dialog.GetDirectory()
@@ -149,133 +155,173 @@ class RootFrame(wx.Frame):
     def OnConvert(self, event):  # wxGlade: RootFrame.<event_handler>
         import PIL.ImageOps
         import Image
+        import imghdr
         import shutil
         import glob
         import time
         import os
         import sys
 
-        is_resize = self.checkbox_resize.IsChecked()
-        resize_mode = self.resize_mode_radio_box.GetSelection()
-        width = int(self.input_resize_width.GetValue())
-        if resize_mode == 0:
-            height = int(self.input_resize_height.GetValue())
-        else:
-            height = None
-        is_aspect = self.checkbox_aspect.IsChecked()
-        is_zoom = self.checkbox_zoom.IsChecked()
-        resample_mode = self.resample_mode_radio_box.GetSelection()
+        # get select options
+        is_resize = self.checkbox_resize.IsChecked()  # type: bool
+        if is_resize:
+            resize_mode = self.resize_mode_radio_box.GetSelection()  # type: int
+            width = int(self.input_resize_width.GetValue())  # type: int
+            if resize_mode == 0:
+                height = int(self.input_resize_height.GetValue())  # type: int
+            else:
+                height = 1  # type: int
+            is_aspect = self.checkbox_aspect.IsChecked()  # type: bool
+            is_zoom = self.checkbox_zoom.IsChecked()  # type: bool
+            resample_mode = self.resample_mode_radio_box.GetSelection()  # type: int
 
-        is_colors = self.checkbox_colors.IsChecked()
-        color_mode = self.combo_box_colors.GetSelection()
-        is_flip_horizontal = self.checkbox_flip_holizontal.IsChecked()
-        is_flip_vertical = self.checkbox_flip_vertical.IsChecked()
-        is_flip_exif = self.checkbox_flip_exif.IsChecked()
-        is_grayscale = self.checkbox_grayscale.IsChecked()
-        is_flip_negative = self.checkbox_negative.IsChecked()
+        is_colors = self.checkbox_colors.IsChecked()  # type: bool
+        if is_colors:
+            color_mode = self.combo_box_colors.GetSelection()  # type: int
 
-        is_file_overwrite = self.checkbox_file_overwrite.IsChecked()
-        is_file_output_dir = self.checkbox_output_dir.IsChecked()
-        file_output_dir = self.input_output_dir.GetValue()
-        is_file_format = self.checkbox_file_format.IsChecked()
-        file_format = self.combo_box_format.GetSelection()
+        is_flip_horizontal = self.checkbox_flip_holizontal.IsChecked()  # type: bool
+        is_flip_vertical = self.checkbox_flip_vertical.IsChecked()  # type: bool
+        is_flip_exif = self.checkbox_flip_exif.IsChecked()  # type: bool
+        is_grayscale = self.checkbox_grayscale.IsChecked()  # type: bool
+        is_flip_negative = self.checkbox_negative.IsChecked()  # type: bool
+        is_remove_exif = self.checkbox_remove_exif.IsChecked()  # type: bool
 
-        RESAMPLE_MODES = [Image.ANTIALIAS, Image.BICUBIC, Image.BILINEAR]
-        FORMATS = ['JPEG', 'PNG', 'GIF']
+        is_file_overwrite = self.checkbox_file_overwrite.IsChecked()  # type: bool
 
-        tmp_dir = os.path.join('/tmp', 'pylfan-'+str(time.time()))
-        os.mkdir(tmp_dir)
-        # backup original files
-        for convert_file in self.convert_files:
-            current_file = os.path.join(self.convert_file_dir, convert_file)
-            shutil.copy(current_file, tmp_dir)
+        is_file_output_dir = self.checkbox_output_dir.IsChecked()  # type: bool
+        if is_file_output_dir:
+            file_output_dir = self.input_output_dir.GetValue()  # type: int
 
-            image = Image.open(os.path.join(tmp_dir, convert_file))
+        is_file_format = self.checkbox_file_format.IsChecked()  # type: bool
+        if is_file_format:
+            file_format = self.combo_box_format.GetSelection()  # type: int
+        # end get select options
 
-            if is_flip_exif:
-                convert_image = {
-                    1: lambda img: img,
-                    2: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT),
-                    3: lambda img: img.transpose(Image.ROTATE_180),
-                    4: lambda img: img.transpose(Image.FLIP_TOP_BOTTOM),
-                    5: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90),
-                    6: lambda img: img.transpose(Image.ROTATE_270),
-                    7: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_270),
-                    8: lambda img: img.transpose(Image.ROTATE_90),
-                }
-                exif = image._getexif()
-                orientation = exif.get(0x112, 1)
-                image = convert_image[orientation](image)
+        # CONSTANT
+        RESAMPLE_MODES = [Image.ANTIALIAS, Image.BICUBIC, Image.BILINEAR]  # type: List[int]
+        FORMATS = ['JPEG', 'PNG', 'GIF']  # type: List[str]
+        TMP_DIR = os.path.join('/tmp', 'pylfan-'+str(time.time()))  # type: str
+        CONVERT_IMAGE = {
+            1: lambda img: img,
+            2: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT),
+            3: lambda img: img.transpose(Image.ROTATE_180),
+            4: lambda img: img.transpose(Image.FLIP_TOP_BOTTOM),
+            5: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90),
+            6: lambda img: img.transpose(Image.ROTATE_270),
+            7: lambda img: img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_270),
+            8: lambda img: img.transpose(Image.ROTATE_90),
+            }  # type: Dict[int: func]
+        # end CONSTANT
+
+        # INITIALIZE
+        os.mkdir(TMP_DIR)
+        # end INITIALIZE
+
+        for convert_filename in self.convert_files:
+            print convert_filename
+            convert_file_path = os.path.join(self.convert_file_dir, convert_filename)  # type: str
+            shutil.copy(convert_file_path, TMP_DIR)
+
+            image = Image.open(os.path.join(TMP_DIR, convert_filename))  # type: Image
+            image_type = imghdr.what(convert_file_path)  # type: str
+
+            if image_type == 'jpeg' and 'exif' in image.info:
+                exif_str = image.info['exif']  # type: str
+            else:
+                exif_str = ''  # type: str
+
+            if image_type == 'jpeg' and is_flip_exif:
+                exif = image._getexif()  # type: Dict[Blob: Any]
+                orientation = exif.get(0x112, 1)  # type: int
+                image = CONVERT_IMAGE[orientation](image)  # type: Image
 
             if is_resize:
                 if (width >= image.size[0] and height >= image.size[1]) and not is_zoom:
                     pass
                 else:
-                    if resize_mode == 0:
-                        if is_aspect:
-                            wpercent = (width/float(image.size[0]))
-                            hpercent = (height/float(image.size[1]))
-                            if wpercent <= hpercent:
-                                hsize = int((float(image.size[1]) * float(wpercent)))
-                                image = image.resize((width, hsize), RESAMPLE_MODES[resample_mode])
+                    if resize_mode == 1 or resize_mode == 2:
+                        height = width
+                    w_percent = (width/float(image.size[0]))  # type: float
+                    h_percent = (height/float(image.size[1]))  # type: float
+                    w_new_size = int((float(image.size[0]) * float(h_percent)))  # type: int
+                    h_new_size = int((float(image.size[1]) * float(w_percent)))  # type: int
+
+                    # width and height or long side
+                    if resize_mode == 0 or resize_mode == 1:
+                        if is_aspect or resize_mode == 1:
+                            if w_percent <= h_percent:
+                                image = image.resize((width, h_new_size), RESAMPLE_MODES[resample_mode])  # type: Image
                             else:
-                                wsize = int((float(image.size[0]) * float(hpercent)))
-                                image = image.resize((wsize, height), RESAMPLE_MODES[resample_mode])
+                                image = image.resize((w_new_size, height), RESAMPLE_MODES[resample_mode])  # type: Image
                         else:
-                            image = image.resize((height, width), RESAMPLE_MODES[resample_mode])
-                    elif resize_mode == 1:
-                        wpercent = (width/float(image.size[0]))
-                        hpercent = (width/float(image.size[1]))
-                        if wpercent <= hpercent:
-                            hsize = int((float(image.size[1]) * float(wpercent)))
-                            image = image.resize((width, hsize), RESAMPLE_MODES[resample_mode])
-                        else:
-                            wsize = int((float(image.size[0]) * float(hpercent)))
-                            image = image.resize((wsize, width), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((height, width), RESAMPLE_MODES[resample_mode])  # type: Image
+                    # narrow side
                     elif resize_mode == 2:
-                        wpercent = (width/float(image.size[0]))
-                        hpercent = (width/float(image.size[1]))
-                        if wpercent >= hpercent:
-                            hsize = int((float(image.size[1]) * float(wpercent)))
-                            image = image.resize((width, hsize), RESAMPLE_MODES[resample_mode])
+                        if w_percent >= h_percent:
+                            image = image.resize((width, h_new_size), RESAMPLE_MODES[resample_mode])  # type: Image
                         else:
-                            wsize = int((float(image.size[0]) * float(hpercent)))
-                            image = image.resize((wsize, width), RESAMPLE_MODES[resample_mode])
+                            image = image.resize((w_new_size, width), RESAMPLE_MODES[resample_mode])  # type: Image
+
+            if is_colors:
+                if color_mode == 0:
+                    pass
+                elif color_mode == 1:
+                    def point_filter(point):
+                        if point > 127:
+                            return 255
+                        else:
+                            return 0
+                    image = image.convert('L').point(point_filter)
+
 
             if is_flip_horizontal:
-                image = image.transpose(Image.FLIP_LEFT_RIGHT)
+                image = image.transpose(Image.FLIP_LEFT_RIGHT)  # type: Image
 
             if is_flip_vertical:
-                image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                image = image.transpose(Image.FLIP_TOP_BOTTOM)  # type: Image
 
             if is_grayscale:
-                image = image.convert('L')
+                image = image.convert('L')  # type: Image
 
             if is_flip_negative:
-                image = PIL.ImageOps.invert(image)
+                print '--'
+                image = PIL.ImageOps.invert(image)  # type: Image
+                print '=='
 
-            # XXX add quality control
+            if is_remove_exif:
+                exif_str = ''  # type: str
+
+            save_options = {
+                'quality': 85,
+            }  # type: Dict[str, Any]
+
+            # XXX quality
+            if image_type == 'jpeg':
+                save_options['exif'] = exif_str  # type: str
+
             if is_file_format:
-                new_filename = '.'.join(convert_file.split('.')[:-1])+'.{0}'.format(FORMATS[file_format].lower())
-                image.save(os.path.join(tmp_dir, new_filename), FORMATS[file_format], quality=85)
+                new_format = FORMATS[file_format]  # type: str
+                if new_format != 'JPEG':
+                    del save_options['exif']
+
+                new_filename = '{0}.{1}'.format('.'.join(convert_filename.split('.')[:-1]), new_format.lower())  # type: str
+                image.save(os.path.join(TMP_DIR, new_filename), FORMATS[file_format], **save_options)
+                #os.remove(os.path.join(TMP_DIR, convert_filename))
             else:
-                image.save(os.path.join(tmp_dir, convert_file), quality=85, )
+                image.save(os.path.join(TMP_DIR, convert_filename), **save_options)
 
         if is_file_output_dir:
-            move_dir = os.path.join(self.convert_file_dir, file_output_dir)
+            move_dir = os.path.join(self.convert_file_dir, file_output_dir)  # type: str
             if not os.path.exists(move_dir):
                 os.mkdir(move_dir)
         elif is_file_overwrite:
             move_dir = file_output_dir
         else:
-            print 'make file an {0} directory'.format(tmp_dir)
+            print 'make file an {0} directory'.format(TMP_DIR)
             sys.exit()
 
-        for file_path in glob.glob(os.path.join(tmp_dir, '*')):
+        for file_path in glob.glob(os.path.join(TMP_DIR, '*')):
             shutil.copy(file_path, move_dir)
-
-
-
 # end of class RootFrame
 
 
