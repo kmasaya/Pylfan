@@ -20,7 +20,6 @@ class RootFrame(wx.Frame):
         wx.Frame.__init__(self, *args, **kwds)
         self.checkbox_resize = wx.CheckBox(self, wx.ID_ANY, "Resize")
         self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Width and Height", "Long side", "Narrow side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
-        # self.resize_mode_radio_box = wx.RadioBox(self, wx.ID_ANY, "Mode", choices=["Height and Width", "Long side"], majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         self.label_resize_input_size = wx.StaticText(self, wx.ID_ANY, "Width / Height or Select Side", style=wx.ALIGN_CENTRE)
         self.input_resize_width = wx.TextCtrl(self, wx.ID_ANY, "")
         self.input_resize_height = wx.TextCtrl(self, wx.ID_ANY, "")
@@ -31,7 +30,7 @@ class RootFrame(wx.Frame):
         self.combo_box_colors = wx.ComboBox(self, wx.ID_ANY, choices=["24bit", "8bit", "4bit", "1bit"], style=wx.CB_DROPDOWN)
         self.checkbox_flip_holizontal = wx.CheckBox(self, wx.ID_ANY, "Flip Horizontal")
         self.checkbox_flip_vertical = wx.CheckBox(self, wx.ID_ANY, "Flip Vertical")
-        self.checkbox_flip_exif = wx.CheckBox(self, wx.ID_ANY, "Flip EXIF")
+        self.checkbox_flip_exif = wx.CheckBox(self, wx.ID_ANY, "Rotate EXIF")
         self.checkbox_grayscale = wx.CheckBox(self, wx.ID_ANY, "Grayscale")
         self.checkbox_negative = wx.CheckBox(self, wx.ID_ANY, "Flip Negative")
         # XXX
@@ -41,6 +40,8 @@ class RootFrame(wx.Frame):
         self.input_output_dir = wx.TextCtrl(self, wx.ID_ANY, "convert")
         self.checkbox_file_format = wx.CheckBox(self, wx.ID_ANY, "File Format")
         self.combo_box_format = wx.ComboBox(self, wx.ID_ANY, choices=["Jpeg", "Png", "Gif"], style=wx.CB_DROPDOWN)
+        self.label_save_quality = wx.StaticText(self, wx.ID_ANY, "Save Quality")
+        self.slider_save_quality = wx.Slider(self, wx.ID_ANY, style=wx.SL_LABELS)
         self.static_line_2 = wx.StaticLine(self, wx.ID_ANY)
         self.tree_filelist = wx.ListCtrl(self, wx.ID_ANY, style=wx.LC_REPORT | wx.SUNKEN_BORDER | wx.FULL_REPAINT_ON_RESIZE)
         # XXX
@@ -69,6 +70,8 @@ class RootFrame(wx.Frame):
         self.combo_box_colors.SetSelection(0)
         self.checkbox_output_dir.SetValue(1)
         self.combo_box_format.SetSelection(0)
+        self.slider_save_quality.SetValue(85)
+        self.slider_save_quality.SetMin(1)
         # end wxGlade
 
     def __do_layout(self):
@@ -79,11 +82,7 @@ class RootFrame(wx.Frame):
         filelist_sizer = wx.BoxSizer(wx.HORIZONTAL)
         filelist_sub_sizer = wx.BoxSizer(wx.VERTICAL)
         file_buttons_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        file_overwrite_sizer = wx.BoxSizer(wx.VERTICAL)
-        file_format_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        file_output_sizer = wx.BoxSizer(wx.HORIZONTAL)
         convert_sizer = wx.BoxSizer(wx.VERTICAL)
-        colors_select_sizer = wx.BoxSizer(wx.HORIZONTAL)
         edit_sizer = wx.BoxSizer(wx.VERTICAL)
         zoom_sizer = wx.BoxSizer(wx.VERTICAL)
         resize_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -100,9 +99,8 @@ class RootFrame(wx.Frame):
         zoom_sizer.Add(self.resample_mode_radio_box, 0, wx.EXPAND, 0)
         edit_sizer.Add(zoom_sizer, 1, wx.EXPAND, 0)
         sub_sizer.Add(edit_sizer, 1, 0, 0)
-        colors_select_sizer.Add(self.checkbox_colors, 0, 0, 0)
-        colors_select_sizer.Add(self.combo_box_colors, 0, 0, 0)
-        convert_sizer.Add(colors_select_sizer, 1, wx.EXPAND | wx.SHAPED, 0)
+        convert_sizer.Add(self.checkbox_colors, 0, wx.EXPAND, 0)
+        convert_sizer.Add(self.combo_box_colors, 0, 0, 0)
         convert_sizer.Add(self.checkbox_flip_holizontal, 0, wx.EXPAND, 0)
         convert_sizer.Add(self.checkbox_flip_vertical, 0, wx.EXPAND, 0)
         convert_sizer.Add(self.checkbox_flip_exif, 0, wx.EXPAND, 0)
@@ -110,14 +108,13 @@ class RootFrame(wx.Frame):
         convert_sizer.Add(self.checkbox_negative, 0, wx.EXPAND, 0)
         convert_sizer.Add(self.checkbox_remove_exif, 0, wx.EXPAND, 0)
         sub_sizer.Add(convert_sizer, 1, 0, 0)
-        file_overwrite_sizer.Add(self.checkbox_file_overwrite, 0, wx.EXPAND, 0)
-        file_output_sizer.Add(self.checkbox_output_dir, 0, 0, 0)
-        file_output_sizer.Add(self.input_output_dir, 0, 0, 0)
-        file_overwrite_sizer.Add(file_output_sizer, 1, 0, 0)
-        file_format_sizer.Add(self.checkbox_file_format, 0, 0, 0)
-        file_format_sizer.Add(self.combo_box_format, 0, 0, 0)
-        file_overwrite_sizer.Add(file_format_sizer, 1, 0, 0)
-        file_sizer.Add(file_overwrite_sizer, 1, 0, 0)
+        file_sizer.Add(self.checkbox_file_overwrite, 0, wx.EXPAND, 0)
+        file_sizer.Add(self.checkbox_output_dir, 0, wx.EXPAND, 0)
+        file_sizer.Add(self.input_output_dir, 0, 0, 0)
+        file_sizer.Add(self.checkbox_file_format, 0, wx.EXPAND, 0)
+        file_sizer.Add(self.combo_box_format, 0, 0, 0)
+        file_sizer.Add(self.label_save_quality, 0, wx.EXPAND, 0)
+        file_sizer.Add(self.slider_save_quality, 0, wx.EXPAND, 0)
         file_sizer.Add(self.static_line_2, 0, wx.EXPAND, 0)
         filelist_sub_sizer.Add(self.tree_filelist, 1, wx.EXPAND, 0)
         file_buttons_sizer.Add(self.button_file_choose, 0, 0, 0)
@@ -132,7 +129,6 @@ class RootFrame(wx.Frame):
         # end wxGlade
 
     def ChangeResizeMode(self, event):  # wxGlade: RootFrame.<event_handler>
-        # XXX
         selection = self.resize_mode_radio_box.GetSelection()
         if 1 == selection or 2 == selection:
             self.input_resize_height.Disable()
@@ -195,11 +191,17 @@ class RootFrame(wx.Frame):
         is_file_format = self.checkbox_file_format.IsChecked()  # type: bool
         if is_file_format:
             file_format = self.combo_box_format.GetSelection()  # type: int
+
+        save_quality = self.slider_save_quality.GetValue()  # type: int
         # end get select options
 
         # CONSTANT
         RESAMPLE_MODES = [Image.ANTIALIAS, Image.BICUBIC, Image.BILINEAR]  # type: List[int]
-        FORMATS = ['JPEG', 'PNG', 'GIF']  # type: List[str]
+        FORMATS = {
+            0: ['JPEG', 'jpg'],
+            1: ['PNG', 'png'],
+            2: ['GIF', 'gif'],
+        }  # type: Dict[int, List[str, str]]
         TMP_DIR = os.path.join('/tmp', 'pylfan-'+str(time.time()))  # type: str
         CONVERT_IMAGE = {
             1: lambda img: img,
@@ -289,21 +291,21 @@ class RootFrame(wx.Frame):
                 exif_str = ''  # type: str
 
             save_options = {
-                'quality': 85,
+                'quality': save_quality,
             }  # type: Dict[str, Any]
 
-            # XXX quality
             if image_type == 'jpeg':
                 save_options['exif'] = exif_str  # type: str
 
             if is_file_format:
-                new_format = FORMATS[file_format]  # type: str
-                if new_format != 'JPEG':
+                new_format = FORMATS[file_format][1]  # type: str
+                if new_format != 'jpg':
                     del save_options['exif']
 
-                new_filename = '{0}.{1}'.format('.'.join(convert_filename.split('.')[:-1]), new_format.lower())  # type: str
-                image.save(os.path.join(TMP_DIR, new_filename), FORMATS[file_format], **save_options)
-                #os.remove(os.path.join(TMP_DIR, convert_filename))
+                new_filename = '{0}.{1}'.format('.'.join(convert_filename.split('.')[:-1]), new_format)  # type: str
+                image.save(os.path.join(TMP_DIR, new_filename), FORMATS[file_format][0], **save_options)
+                if new_filename != convert_filename:
+                    os.remove(os.path.join(TMP_DIR, convert_filename))
             else:
                 image.save(os.path.join(TMP_DIR, convert_filename), **save_options)
 
