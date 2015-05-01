@@ -60,7 +60,7 @@ class RootFrame(wx.Frame):
     def __set_properties(self):
         # begin wxGlade: RootFrame.__set_properties
         self.SetTitle("Pylfan")
-        self.SetSize((896, 600))
+        self.SetSize((600, 320))
         self.checkbox_resize.SetValue(1)
         self.input_resize_width.SetValue('800')
         self.input_resize_height.SetValue('600')
